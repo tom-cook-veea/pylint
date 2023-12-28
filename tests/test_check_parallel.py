@@ -7,8 +7,9 @@
 # pylint: disable=protected-access,missing-function-docstring,no-self-use
 
 import argparse
-import multiprocessing
 import os
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from typing import List
 
 import dill
@@ -184,10 +185,10 @@ class TestCheckParallelFramework:
         """
         linter = PyLinter(reporter=Reporter())
         linter.attribute = argparse.ArgumentParser()  # type: ignore[attr-defined]
-        with multiprocessing.Pool(
-            2, initializer=worker_initialize, initargs=[dill.dumps(linter)]
-        ) as pool:
-            pool.imap_unordered(print, [1, 2])
+        with ProcessPoolExecutor(
+            max_workers=2, initializer=worker_initialize, initargs=(dill.dumps(linter),)
+        ) as executor:
+            executor.map(print, [1, 2])
 
     def test_worker_check_single_file_uninitialised(self) -> None:
         pylint.lint.parallel._worker_linter = None

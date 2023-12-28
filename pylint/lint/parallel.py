@@ -29,10 +29,15 @@ try:
 except ImportError:
     multiprocessing = None  # type: ignore[assignment]
 
+try:
+    from concurrent.futures import ProcessPoolExecutor
+except ImportError:
+    ProcessPoolExecutor = None  # type: ignore[assignment,misc]
+
 if TYPE_CHECKING:
     from pylint.lint import PyLinter
 
-# PyLinter object used by worker processes when checking files using multiprocessing
+# PyLinter object used by worker processes when checking files using parallel mode
 # should only be used by the worker processes
 _worker_linter = None
 
@@ -52,7 +57,7 @@ def _get_new_args(message):
 def _worker_initialize(
     linter: bytes, arguments: Union[None, str, Sequence[str]] = None
 ) -> None:
-    """Function called to initialize a worker for a Process within a multiprocessing Pool.
+    """Function called to initialize a worker for a Process within a concurrent Pool.
 
     :param linter: A linter-class (PyLinter) instance pickled with dill
     :param arguments: File or module name(s) to lint and to be added to sys.path
@@ -144,9 +149,9 @@ def check_parallel(
     # is identical to the linter object here. This is required so that
     # a custom PyLinter object can be used.
     initializer = functools.partial(_worker_initialize, arguments=arguments)
-    with multiprocessing.Pool(
-        jobs, initializer=initializer, initargs=[dill.dumps(linter)]
-    ) as pool:
+    with ProcessPoolExecutor(
+        max_workers=jobs, initializer=initializer, initargs=(dill.dumps(linter),)
+    ) as executor:
         linter.open()
         all_stats = []
         all_mapreduce_data = collections.defaultdict(list)
@@ -163,7 +168,7 @@ def check_parallel(
             stats,
             msg_status,
             mapreduce_data,
-        ) in pool.imap_unordered(_worker_check_single_file, files):
+        ) in executor.map(_worker_check_single_file, files):
             linter.file_state.base_name = base_name
             linter.set_current_module(module, file_path)
             for msg in messages:

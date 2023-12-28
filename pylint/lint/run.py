@@ -19,6 +19,11 @@ try:
 except ImportError:
     multiprocessing = None  # type: ignore[assignment]
 
+try:
+    from concurrent.futures import ProcessPoolExecutor
+except ImportError:
+    ProcessPoolExecutor = None  # type: ignore[assignment,misc]
+
 
 def _cpu_count() -> int:
     """Use sched_affinity if available for virtualized or containerized environments."""
@@ -336,9 +341,9 @@ to search for configuration file.
             )
             sys.exit(32)
         if linter.config.jobs > 1 or linter.config.jobs == 0:
-            if multiprocessing is None:
+            if ProcessPoolExecutor is None:
                 print(
-                    "Multiprocessing library is missing, fallback to single process",
+                    "concurrent.futures module is missing, fallback to single process",
                     file=sys.stderr,
                 )
                 linter.set_option("jobs", 1)
