@@ -24,6 +24,7 @@ from pylint.lint import PyLinter
 from pylint.lint.parallel import _worker_check_single_file as worker_check_single_file
 from pylint.lint.parallel import _worker_initialize as worker_initialize
 from pylint.lint.parallel import check_parallel
+from pylint.lint.parallel import initmap
 from pylint.testutils import GenericTestReporter as Reporter
 from pylint.typing import FileItem
 from pylint.utils import LinterStats, ModuleStats
@@ -185,10 +186,8 @@ class TestCheckParallelFramework:
         """
         linter = PyLinter(reporter=Reporter())
         linter.attribute = argparse.ArgumentParser()  # type: ignore[attr-defined]
-        with ProcessPoolExecutor(
-            max_workers=2, initializer=worker_initialize, initargs=(dill.dumps(linter),)
-        ) as executor:
-            executor.map(print, [1, 2])
+        with ProcessPoolExecutor(max_workers=2) as executor:
+            initmap(executor, worker_initialize, (dill.dumps(linter),), print, [1, 3])
 
     def test_worker_check_single_file_uninitialised(self) -> None:
         pylint.lint.parallel._worker_linter = None

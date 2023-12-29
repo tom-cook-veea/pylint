@@ -133,6 +133,20 @@ def _merge_mapreduce_data(linter, all_mapreduce_data):
             checker.reduce_map_data(linter, collated_map_reduce_data[checker.name])
 
 
+_inited = False
+_initresult = None
+
+
+def _initwrap(initfunc, initargs, f, x):
+    global _inited, _initresult
+    if not _inited:
+        _inited = True
+        _initresult = initfunc(*initargs)
+    return f(x)
+
+def initmap(executor, initializer, initargs, f, it):
+    return executor.map(functools.partial(_initwrap, initializer, initargs, f), it)
+
 def check_parallel(
     linter: "PyLinter",
     jobs: int,
@@ -149,9 +163,7 @@ def check_parallel(
     # is identical to the linter object here. This is required so that
     # a custom PyLinter object can be used.
     initializer = functools.partial(_worker_initialize, arguments=arguments)
-    with ProcessPoolExecutor(
-        max_workers=jobs, initializer=initializer, initargs=(dill.dumps(linter),)
-    ) as executor:
+    with ProcessPoolExecutor(max_workers=jobs) as executor:
         linter.open()
         all_stats = []
         all_mapreduce_data = collections.defaultdict(list)
@@ -168,7 +180,13 @@ def check_parallel(
             stats,
             msg_status,
             mapreduce_data,
-        ) in executor.map(_worker_check_single_file, files):
+        ) in initmap(
+            executor=executor,
+            initializer=initializer,
+            initargs=(dill.dumps(linter),),
+            f=_worker_check_single_file,
+            it=files
+        ):
             linter.file_state.base_name = base_name
             linter.set_current_module(module, file_path)
             for msg in messages:
